@@ -164,7 +164,10 @@ def crawl():
         visited_pages.add(url)
         
         try:
-            response = requests.get(url)
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+            }
+            response = requests.get(url, headers=headers)
             response.raise_for_status()
             
             # Use the final URL after redirects to determine the file path
@@ -174,6 +177,41 @@ def crawl():
             # to avoid overwriting index.html with a subpage content
             if final_url != url:
                 print(f"Redirected: {url} -> {final_url}")
+                
+                # Check if we should create a local redirect file
+                # URL -> Final URL
+                # public/streams/index.html -> public/sea-of-thieves/streams/index.html
+                
+                local_original = make_local_path(url)
+                local_final = make_local_path(final_url)
+                
+                # Only if paths are different (query params might not change path)
+                if local_original != local_final:
+                    full_original_path = os.path.join(OUTPUT_DIR, local_original)
+                    full_final_path = os.path.join(OUTPUT_DIR, local_final)
+                    
+                    # Calculate relative path for redirect
+                    # from dir of original to final file
+                    orig_dir = os.path.dirname(full_original_path)
+                    rel_target = os.path.relpath(full_final_path, orig_dir).replace("\\", "/")
+                    
+                    redirect_html = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="refresh" content="0; url={rel_target}">
+</head>
+<body>
+<p>Redirecting to <a href="{rel_target}">{rel_target}</a>...</p>
+</body>
+</html>"""
+                    
+                    os.makedirs(os.path.dirname(full_original_path), exist_ok=True)
+                    # Write redirect file if it's not index.html of root (safety check)
+                    if local_original != "index.html":
+                        with open(full_original_path, "w", encoding="utf-8") as f:
+                            f.write(redirect_html)
+                        print(f"Created redirect: {local_original} -> {local_final}")
+
                 # Mark final URL as visited too
                 if final_url in visited_pages:
                     continue
