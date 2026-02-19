@@ -166,6 +166,19 @@ def crawl():
         try:
             response = requests.get(url)
             response.raise_for_status()
+            
+            # Use the final URL after redirects to determine the file path
+            final_url = response.url
+            
+            # If the final URL is different (redirect), we should use that for the path
+            # to avoid overwriting index.html with a subpage content
+            if final_url != url:
+                print(f"Redirected: {url} -> {final_url}")
+                # Mark final URL as visited too
+                if final_url in visited_pages:
+                    continue
+                visited_pages.add(final_url)
+                
             soup = BeautifulSoup(response.content, 'html.parser')
             
             # --- ASSETS ---
@@ -174,23 +187,20 @@ def crawl():
                     asset_val = element.get(attr)
                     if not asset_val: continue
                     
-                    full_asset_url = urljoin(url, asset_val)
+                    full_asset_url = urljoin(final_url, asset_val)
                     parsed_asset = urlparse(full_asset_url)
                     
                     if parsed_asset.netloc in ["www.saucrew.de", "saucrew.de", ""]:
-                        # file extension check to avoid downloading html as asset?
                         path = parsed_asset.path
                         if path.endswith("/") or "." not in os.path.basename(path):
-                             continue # Wahrscheinlich eine Seite, kein Asset
+                             continue 
 
-                        # Pfad säubern
                         relative_path = unquote(parsed_asset.path).lstrip("/")
                         local_asset_path = os.path.join(OUTPUT_DIR, relative_path)
                         
                         download_file(full_asset_url, local_asset_path)
                         
-                        # Rewrite Link
-                        current_page_local = make_local_path(url)
+                        current_page_local = make_local_path(final_url)
                         current_page_dir = os.path.dirname(os.path.join(OUTPUT_DIR, current_page_local))
                         rel_path = os.path.relpath(local_asset_path, current_page_dir).replace("\\", "/")
                         element[attr] = rel_path
@@ -201,35 +211,43 @@ def crawl():
                 if link_val.startswith("#") or link_val.startswith("mailto:") or link_val.startswith("tel:"):
                     continue
                     
-                full_link_url = urljoin(url, link_val)
+                full_link_url = urljoin(final_url, link_val)
                 parsed_link = urlparse(full_link_url)
                 
                 if parsed_link.netloc in ["www.saucrew.de", "saucrew.de"]:
-                    # Zur Queue hinzufügen
                     clean_link = full_link_url.split("#")[0]
+                    # Don't queue if it has query params that might cause duplicate content issues
+                    # unless we handle them. For now, strict static mapping.
                     if clean_link not in visited_pages and clean_link not in queue:
                         queue.append(clean_link)
                     
-                    # Rewrite Link
-                    target_local = make_local_path(full_link_url) # inkludiert index.html logik
-                    
-                    # Pfad zur aktuellen Seite
-                    current_page_local = make_local_path(url)
+                    target_local = make_local_path(full_link_url)
+                    current_page_local = make_local_path(final_url)
                     current_page_dir = os.path.dirname(os.path.join(OUTPUT_DIR, current_page_local))
                     
                     target_full_path = os.path.join(OUTPUT_DIR, target_local)
                     rel_link = os.path.relpath(target_full_path, current_page_dir).replace("\\", "/")
                     
-                    # Hash wieder anhängen falls vorhanden
                     if "#" in full_link_url:
                         rel_link += "#" + full_link_url.split("#")[1]
                         
                     a['href'] = rel_link
 
             # --- SPEICHERN ---
-            local_path = make_local_path(url)
+            # Use final_url for saving
+            local_path = make_local_path(final_url)
+            
+            # Check if we are about to overwrite index.html with something that isn't the root
+            if local_path == "index.html" and urlparse(final_url).path not in ["/", "", "/index.html"]:
+                 print(f"SKIPPING OVERWRITE of index.html from {final_url}")
+                 continue
+
             full_save_path = os.path.join(OUTPUT_DIR, local_path)
             os.makedirs(os.path.dirname(full_save_path), exist_ok=True)
+            
+            # Don't overwrite if it exists and we are not on the first pass?
+            # Actually, we want to update it if we are re-running.
+            # But we must ensure uniqueness.
             
             with open(full_save_path, "w", encoding="utf-8") as f:
                 f.write(str(soup))
