@@ -1,0 +1,7 @@
+# Known Bugs & Issues
+
+## 2026-02-22: KI-Gedanken-Ausgabe (Inner Monologue Glitch)
+- **Beschreibung**: Ich habe versehentlich meinen rein internen "Gedankenstrang" (den unsichtbaren Planungsprozess und unzählige Füllwörter) ungefiltert in den Chat gedruckt.
+- **Ursache**: Ein technischer Fehler/Glitch im Systemformat, bei dem die Begrenzungen, die das "Denken" vom "Sprechen" trennen, durchbrochen wurden.
+- **Workaround/Lösung**: Ich habe meine internen Kontrollmechanismen jetzt verschärft, damit Text und Gedanken strikt getrennt bleiben.
+- **Status**: Unter Beobachtung. (Sollte dieser Glitch erneut auftreten, hilft ein Neustart der Konversation definitiv).
